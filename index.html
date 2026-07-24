@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>سامانه کاداستر ثبتی</title>
-    <!-- SDK اصلی تلگرام -->
+    <!-- SDK تلگرام -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -131,21 +131,21 @@
 </head>
 <body>
 
-    <!-- بخش اول: مشخصات متقاضی و ملک -->
+    <!-- بخش اول: مشخصات متقاضی و پروژه -->
     <div class="card">
         <h3>📋 مشخصات متقاضی و پروژه</h3>
         <div class="form-group">
             <label>نام و نام خانوادگی مالک / متقاضی:</label>
-            <input type="text" id="applicant_name" value="جمشید نیکخواه بهرامی">
+            <input type="text" id="applicant_name" placeholder="نام متقاضی (مثال: علی حسینی)">
         </div>
         <div class="form-group">
             <label>کد ملی / شناسه ملی:</label>
-            <input type="text" id="national_id" value="5889811193">
+            <input type="text" id="national_id" placeholder="شماره ملی فرضی (مثال: 0012345678)">
         </div>
         <div style="display: flex; gap: 8px;">
             <div class="form-group" style="flex: 1;">
                 <label>مساحت بنا (m²):</label>
-                <input type="number" id="building_area" value="0.0" step="0.01">
+                <input type="number" id="building_area" placeholder="0.0" step="0.01">
             </div>
             <div class="form-group" style="flex: 1;">
                 <label>زون UTM:</label>
@@ -166,9 +166,7 @@
     <!-- بخش سوم: تعیین مجاورین (پویا) -->
     <div class="card">
         <h3>🔗 تعیین مجاورین (بازه‌ای)</h3>
-        <div id="ranges-container">
-            <!-- ردیف‌ها اینجا به صورت هوشمند اضافه می‌شوند -->
-        </div>
+        <div id="ranges-container"></div>
         <button type="button" class="btn-add" onclick="addRangeRow()">➕ افزودن بازه مجاور جدید</button>
     </div>
 
@@ -176,17 +174,38 @@
     <button id="submit-btn" class="submit-btn" onclick="sendData()">🚀 پردازش و صدور نقشه‌ها</button>
 
     <script>
-        // مقداردهی اولیه SDK تلگرام
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand(); // باز کردن کامل صفحه در گوشی
+        // بررسی هوشمند محیط اجرای برنامه (تلگرام یا مرورگر عادی)
+        const tg = window.Telegram?.WebApp;
+        const isTelegramEnv = Boolean(tg && tg.initDataUnsafe && tg.initDataUnsafe.user);
 
-        // افزودن اولین ردیف جدول مجاورین به طور پیش‌فرض
+        if (tg) {
+            tg.ready();
+            tg.expand();
+        }
+
+        // تابع هوشمند نمایش پیام به کاربر
+        function showNotification(message) {
+            if (isTelegramEnv && tg.showAlert) {
+                tg.showAlert(message);
+            } else {
+                alert(message);
+            }
+        }
+
+        // تابع دانلود مستقیم فایل اکسل در مرورگر وب
+        function downloadBase64File(base64Data, filename) {
+            const link = document.createElement('a');
+            link.href = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + base64Data;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         window.onload = function() {
-            addRangeRow(1, 5, "مرز", "باقیمانده پلاک 7 فرعی");
+            addRangeRow(1, 5, "مرز", "پلاک فرضی / مجاور");
         };
 
-        // تابع ساخت ردیف جدید در جدول مجاورین
         function addRangeRow(start = 1, end = 2, type = "مرز", name = "") {
             const container = document.getElementById('ranges-container');
             const rowDiv = document.createElement('div');
@@ -206,13 +225,10 @@
             container.appendChild(rowDiv);
         }
 
-        // حذف ردیف مجاور
         function removeRangeRow(btn) {
-            const row = btn.parentElement;
-            row.remove();
+            btn.parentElement.remove();
         }
 
-        // استخراج اطلاعات جدول مجاورین
         function getRangesData() {
             const rows = document.querySelectorAll('.range-row');
             const ranges = [];
@@ -227,17 +243,21 @@
             return ranges;
         }
 
-        // جمع‌آوری و ارسال کل فرم به بک‌اند
         async function sendData() {
             const coordsText = document.getElementById('coords_text').value.trim();
+            const applicantName = document.getElementById('applicant_name').value.trim();
             
-            if (!coordsText) {
-                tg.showAlert("لطفاً مختصات رئوس را وارد کنید!");
+            if (!applicantName) {
+                showNotification("لطفاً نام و نام خانوادگی متقاضی را وارد کنید!");
                 return;
             }
 
-            // افکت ویبره گوشی (Haptic Feedback)
-            if (tg.HapticFeedback) {
+            if (!coordsText) {
+                showNotification("لطفاً مختصات رئوس را وارد کنید!");
+                return;
+            }
+
+            if (isTelegramEnv && tg.HapticFeedback) {
                 tg.HapticFeedback.impactOccurred('medium');
             }
 
@@ -246,9 +266,10 @@
             btn.innerText = "⏳ در حال محاسبات هندسی...";
 
             const payload = {
-                user_id: tg.initDataUnsafe?.user?.id || 12345678, // آیدی تلگرام کاربر
-                applicant_name: document.getElementById('applicant_name').value,
-                national_id: document.getElementById('national_id').value,
+                is_telegram: isTelegramEnv,
+                user_id: isTelegramEnv ? tg.initDataUnsafe.user.id : null,
+                applicant_name: applicantName,
+                national_id: document.getElementById('national_id').value.trim() || "---",
                 building_area: parseFloat(document.getElementById('building_area').value) || 0.0,
                 zone: parseInt(document.getElementById('zone').value) || 39,
                 coords_text: coordsText,
@@ -256,7 +277,7 @@
             };
 
             try {
-                // ارسال درخواست به API بک‌اند پایتون
+                // آدرس API بک‌اند (در مرحله بعدی جایگزین می‌شود)
                 const response = await fetch("YOUR_BACKEND_API_URL/process", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -266,13 +287,21 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    tg.showAlert("✅ محاسبات با موفقیت انجام شد! فایل‌ها در چت تلگرام ارسال شدند.");
-                    tg.close(); // بستن مینی‌اپ
+                    if (result.files && result.files.length > 0) {
+                        // دانلود مستقیم فایل‌ها در مرورگر عادی
+                        result.files.forEach(file => {
+                            downloadBase64File(file.content_base64, file.filename);
+                        });
+                        showNotification("✅ محاسبات انجام شد و فایل‌های کاداستر دانلود شدند.");
+                    } else {
+                        showNotification("✅ محاسبات با موفقیت انجام شد! فایل‌ها در چت تلگرام ارسال شدند.");
+                        if (isTelegramEnv) tg.close();
+                    }
                 } else {
-                    tg.showAlert("❌ خطا در پردازش: " + result.error);
+                    showNotification("❌ خطا در پردازش: " + result.error);
                 }
             } catch (err) {
-                tg.showAlert("⚠️ خطا در ارتباط با سرور بک‌اند!");
+                showNotification("⚠️ خطا در ارتباط با سرور بک‌اند!");
             } finally {
                 btn.disabled = false;
                 btn.innerText = "🚀 پردازش و صدور نقشه‌ها";
