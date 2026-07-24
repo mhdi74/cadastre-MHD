@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سامانه کاداستر ثبتی</title>
-    <!-- SDK تلگرام -->
+    <title>  سامانه تولید گواهی مختصات</title>
+    <!-- SDK اصلی تلگرام -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -13,7 +13,7 @@
             --card-bg: var(--tg-theme-secondary-bg-color, #ffffff);
             --btn-color: var(--tg-theme-button-color, #2481cc);
             --btn-text: var(--tg-theme-button-text-color, #ffffff);
-            --hint-color: var(--tg-theme-hint-color, #888888);
+            --hint-color: var(--tg-theme-hint-color, #666666);
             --border-color: #e0e0e0;
         }
 
@@ -71,10 +71,22 @@
             resize: vertical;
         }
 
-        /* جدول پویای مجاورین */
+        /* سرستون‌ها و جدول پویای مجاورین */
+        .range-header {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1.3fr 2fr 35px;
+            gap: 6px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            color: var(--btn-color);
+            margin-bottom: 6px;
+            padding: 0 2px;
+            text-align: center;
+        }
+
         .range-row {
             display: grid;
-            grid-template-columns: 1fr 1fr 1.2fr 2fr auto;
+            grid-template-columns: 1fr 1fr 1.3fr 2fr 35px;
             gap: 6px;
             margin-bottom: 8px;
             align-items: center;
@@ -85,9 +97,11 @@
             color: white;
             border: none;
             border-radius: 6px;
-            padding: 8px 10px;
+            padding: 8px 0;
             cursor: pointer;
             font-weight: bold;
+            width: 35px;
+            text-align: center;
         }
 
         .btn-add {
@@ -122,14 +136,49 @@
             cursor: not-allowed;
         }
 
-        .hint {
-            font-size: 0.75rem;
+        .hint-box {
+            background-color: rgba(36, 129, 204, 0.08);
+            border-right: 3px solid var(--btn-color);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: var(--text-color);
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+
+        .hint-box ul {
+            margin: 4px 0 0 0;
+            padding-right: 18px;
+        }
+
+        .developer-footer {
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            font-size: 0.8rem;
             color: var(--hint-color);
-            margin-top: 3px;
+            border-top: 1px dashed var(--border-color);
+        }
+
+        .developer-footer b {
+            color: var(--btn-color);
         }
     </style>
 </head>
 <body>
+
+    <!-- لیست گزینه‌های پیشنهادی نوع مرز (با قابلیت تایپ دستی) -->
+    <datalist id="border-types-list">
+        <option value="مرز"></option>
+        <option value="دیوار"></option>
+        <option value="کوچه"></option>
+        <option value="خیابان"></option>
+        <option value="بلوار"></option>
+        <option value="مجرای آب"></option>
+        <option value="مسیل"></option>
+        <option value="حریم"></option>
+    </datalist>
 
     <!-- بخش اول: مشخصات متقاضی و پروژه -->
     <div class="card">
@@ -159,13 +208,34 @@
         <h3>📍 مختصات رئوس (X, Y)</h3>
         <div class="form-group">
             <textarea id="coords_text" rows="5" placeholder="مثال:&#10;X=522100.25 Y=4012300.50&#10;یا کپی‌پیست جدول مختصات..."></textarea>
-            <div class="hint">مختصات را می‌توانید با X= و Y= یا به‌صورت ستونی وارد کنید.</div>
+            <div style="font-size: 0.75rem; color: var(--hint-color); margin-top: 3px;">
+                مختصات را می‌توانید با X= و Y= یا به‌صورت ستونی وارد کنید.
+            </div>
         </div>
     </div>
 
     <!-- بخش سوم: تعیین مجاورین (پویا) -->
     <div class="card">
         <h3>🔗 تعیین مجاورین (بازه‌ای)</h3>
+        
+        <!-- کادر راهنما -->
+        <div class="hint-box">
+            💡 <b>راهنمای تعیین مجاورین:</b>
+            <ul>
+                <li>گردش اضلاع به صورت خودکار از شمال و در جهت <b>ساعت‌گرد</b> مرتب می‌شود.</li>
+                <li>به ازای هر تغییری که در نوع مرز یا نام مجاور رخ می‌دهد، یک ردیف جدید اضافه کنید (مثلاً از رأس ۱ تا ۴ «مرز پلاک مجاور» و از ۴ تا ۶ «کوچه»).</li>
+            </ul>
+        </div>
+
+        <!-- عناوین ستون‌های جدول -->
+        <div class="range-header">
+            <span>رأس آغاز</span>
+            <span>رأس پایان</span>
+            <span>نوع مرز</span>
+            <span>نام مجاور</span>
+            <span></span>
+        </div>
+
         <div id="ranges-container"></div>
         <button type="button" class="btn-add" onclick="addRangeRow()">➕ افزودن بازه مجاور جدید</button>
     </div>
@@ -173,8 +243,12 @@
     <!-- دکمه ارسال -->
     <button id="submit-btn" class="submit-btn" onclick="sendData()">🚀 پردازش و صدور نقشه‌ها</button>
 
+    <!-- بخش توسعه‌دهنده -->
+    <div class="developer-footer">
+        👨‍💻 طراحی و توسعه داده شده توسط: <b>[سیدمهدی هاشمی]</b>
+    </div>
+
     <script>
-        // بررسی هوشمند محیط اجرای برنامه (تلگرام یا مرورگر عادی)
         const tg = window.Telegram?.WebApp;
         const isTelegramEnv = Boolean(tg && tg.initDataUnsafe && tg.initDataUnsafe.user);
 
@@ -183,7 +257,6 @@
             tg.expand();
         }
 
-        // تابع هوشمند نمایش پیام به کاربر
         function showNotification(message) {
             if (isTelegramEnv && tg.showAlert) {
                 tg.showAlert(message);
@@ -192,7 +265,6 @@
             }
         }
 
-        // تابع دانلود مستقیم فایل اکسل در مرورگر وب
         function downloadBase64File(base64Data, filename) {
             const link = document.createElement('a');
             link.href = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + base64Data;
@@ -213,12 +285,7 @@
             rowDiv.innerHTML = `
                 <input type="number" class="r-start" placeholder="از" value="${start}">
                 <input type="number" class="r-end" placeholder="تا" value="${end}">
-                <select class="r-type">
-                    <option value="مرز" ${type === "مرز" ? "selected" : ""}>مرز</option>
-                    <option value="دیوار" ${type === "دیوار" ? "selected" : ""}>دیوار</option>
-                    <option value="کوچه" ${type === "کوچه" ? "selected" : ""}>کوچه</option>
-                    <option value="خیابان" ${type === "خیابان" ? "selected" : ""}>خیابان</option>
-                </select>
+                <input type="text" class="r-type" list="border-types-list" placeholder="نوع مرز" value="${type}">
                 <input type="text" class="r-name" placeholder="نام مجاور" value="${name}">
                 <button type="button" class="btn-del" onclick="removeRangeRow(this)">✕</button>
             `;
@@ -236,7 +303,7 @@
                 ranges.push({
                     "راس ابتدا": parseInt(row.querySelector('.r-start').value) || 1,
                     "راس انتها": parseInt(row.querySelector('.r-end').value) || 2,
-                    "نوع مرز": row.querySelector('.r-type').value,
+                    "نوع مرز": row.querySelector('.r-type').value || "مرز",
                     "نام مجاور": row.querySelector('.r-name').value || "---"
                 });
             });
@@ -277,7 +344,7 @@
             };
 
             try {
-                // آدرس API بک‌اند (در مرحله بعدی جایگزین می‌شود)
+                // آدرس API اختصاصی Render شما
                 const response = await fetch("https://cadastre-api-5uow.onrender.com/process", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -288,7 +355,6 @@
 
                 if (result.success) {
                     if (result.files && result.files.length > 0) {
-                        // دانلود مستقیم فایل‌ها در مرورگر عادی
                         result.files.forEach(file => {
                             downloadBase64File(file.content_base64, file.filename);
                         });
